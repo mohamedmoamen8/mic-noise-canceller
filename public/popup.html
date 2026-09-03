@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mic Noise Canceller</title>
+  <style>
+    :root {
+      --bg: #14151a;
+      --panel: #1c1e26;
+      --accent: #5865f2;
+      --accent-off: #3a3d4a;
+      --text: #f2f3f7;
+      --muted: #8b8d9a;
+      --danger: #e5534b;
+      --good: #3ba55d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 300px;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    h1 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-off);
+      transition: background 0.2s ease;
+    }
+    .status-dot.on { background: var(--good); box-shadow: 0 0 8px var(--good); }
+
+    .badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      padding: 2px 7px;
+      border-radius: 999px;
+      display: none;
+    }
+    .badge-rnnoise { background: rgba(88, 101, 242, 0.18); color: #a6b0ff; }
+    .badge-gate { background: rgba(139, 141, 154, 0.18); color: var(--muted); }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .toggle-label { font-size: 13px; color: var(--muted); }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      cursor: pointer;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--accent-off);
+      border-radius: 999px;
+      transition: background 0.2s ease;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider::before { transform: translateX(20px); }
+    input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
+
+    canvas {
+      width: 100%;
+      height: 64px;
+      display: block;
+      border-radius: 6px;
+      background: #0e0f13;
+    }
+
+    .strength-row {
+      margin-top: 12px;
+    }
+    .strength-row label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .monitor-row {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .calibration-panel {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .calibration-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .calibration-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .calibration-status {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .calibration-status.calibrated { color: var(--good); }
+    .btn {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s ease;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-secondary { background: var(--accent-off); color: var(--text); }
+    .btn-row { display: flex; gap: 8px; margin-top: 8px; }
+    .btn-row .btn { flex: 1; }
+    .btn-link {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 11px;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+    }
+    .calibration-result {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--accent-off);
+    }
+    .calibration-result audio {
+      width: 100%;
+      height: 32px;
+      margin: 6px 0;
+    }
+    .calibration-summary {
+      font-size: 12px;
+      color: var(--text);
+    }
+    .calibration-summary .level-quiet { color: var(--good); }
+    .calibration-summary .level-moderate { color: #e5b93e; }
+    .calibration-summary .level-noisy { color: var(--danger); }
+
+    #errorBox {
+      display: none;
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: rgba(229, 83, 75, 0.12);
+      border: 1px solid var(--danger);
+      border-radius: 6px;
+      color: #ffb3ae;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <span class="status-dot" id="statusDot"></span>
+    Mic Noise Canceller
+    <span class="badge" id="engineBadge"></span>
+  </h1>
+
+  <div class="panel">
+    <div class="toggle-row">
+      <span class="toggle-label" id="toggleLabel">Noise reduction is off</span>
+      <label class="switch">
+        <input type="checkbox" id="toggleSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <canvas id="visualizer" width="272" height="64"></canvas>
+
+    <div class="strength-row">
+      <label>
+        <span>Suppression strength</span>
+        <span id="strengthValue">85%</span>
+      </label>
+      <input type="range" id="strengthSlider" min="0" max="100" value="85" />
+    </div>
+
+    <div class="monitor-row">
+      <span>Monitor cleaned audio</span>
+      <label class="switch">
+        <input type="checkbox" id="monitorSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div id="errorBox"></div>
+  </div>
+
+  <div class="calibration-panel">
+    <div class="calibration-header">
+      <span class="calibration-title">Microphone calibration</span>
+      <span class="calibration-status" id="calibrationStatus">Not calibrated</span>
+    </div>
+
+    <button class="btn btn-secondary" id="calibrateBtn">Record 3s of background noise</button>
+
+    <div class="calibration-result" id="calibrationResult" style="display: none;">
+      <div class="calibration-summary" id="calibrationSummary"></div>
+      <audio id="calibrationAudio" controls></audio>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="discardCalibrationBtn">Discard &amp; retry</button>
+        <button class="btn btn-primary" id="confirmCalibrationBtn">Use this &amp; save</button>
+      </div>
+    </div>
+
+    <div style="margin-top: 8px; text-align: right;">
+      <button class="btn-link" id="resetCalibrationBtn" style="display: none;">Reset calibration</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

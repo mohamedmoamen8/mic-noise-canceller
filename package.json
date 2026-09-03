@@ -1,0 +1,27 @@
+{
+  "name": "mic-noise-canceller",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Manifest V3 Chrome extension: real-time client-side mic noise cancellation via RNNoise (WASM) with a JS fallback engine.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worklet.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "npm run typecheck && npm run test && npm run build && node scripts/zip.mjs",
+    "clean": "node --input-type=module -e \"import {rmSync} from 'node:fs'; rmSync('dist', {recursive: true, force: true})\""
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/audioworklet": "^0.0.100",
+    "@types/chrome": "^0.2.6",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "@jitsi/rnnoise-wasm": "^0.2.1"
+  }
+}

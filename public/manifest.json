@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Mic Noise Canceller",
+  "version": "2.1.0",
+  "description": "Real-time client-side background noise cancellation for your microphone, powered by RNNoise (WASM/ML) with a JS fallback, and a mic calibration step.",
+  "permissions": ["offscreen", "storage"],
+  "host_permissions": [],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Mic Noise Canceller"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
