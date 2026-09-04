@@ -128,6 +128,21 @@
       color: var(--muted);
     }
 
+    .bypass-row {
+      margin-top: 12px;
+      display: none; /* shown only when pipeline is running */
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px 10px;
+      background: rgba(229, 179, 62, 0.08);
+      border: 1px solid rgba(229, 179, 62, 0.25);
+      border-radius: 6px;
+    }
+    .bypass-row.visible { display: flex; }
+    .bypass-row .bypass-label { color: #e5b93e; font-weight: 600; }
+
     .calibration-panel {
       background: var(--panel);
       border-radius: 10px;
@@ -235,6 +250,14 @@
       <span>Monitor cleaned audio</span>
       <label class="switch">
         <input type="checkbox" id="monitorSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="bypass-row" id="bypassRow">
+      <span class="bypass-label">Bypass (A/B compare)</span>
+      <label class="switch">
+        <input type="checkbox" id="bypassSwitch" />
         <span class="slider"></span>
       </label>
     </div>

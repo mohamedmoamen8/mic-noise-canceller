@@ -6,6 +6,11 @@ import {
   getStoredNoiseProfile,
   setStoredNoiseProfile,
   clearStoredNoiseProfile,
+  setNoiseStrength,
+  getAutoStart,
+  getAllowlistedSites,
+  addAllowlistedSite,
+  removeAllowlistedSite,
 } from '../../core/storage';
 
 const OFFSCREEN_PATH = 'offscreen.html';
@@ -125,6 +130,59 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
           break;
         }
 
+        case 'GET_SITES': {
+          const sites = await getAllowlistedSites();
+          sendResponse({ ok: true, sites });
+          break;
+        }
+
+        case 'ADD_SITE': {
+          await addAllowlistedSite(message.hostname);
+          sendResponse({ ok: true });
+          break;
+        }
+
+        case 'REMOVE_SITE': {
+          await removeAllowlistedSite(message.hostname);
+          sendResponse({ ok: true });
+          break;
+        }
+
+        case 'SET_STRENGTH': {
+          // Always persist to storage so the value survives before the
+          // pipeline starts and across service-worker restarts.
+          await setNoiseStrength(message.value);
+          // Forward to offscreen only if the document is already alive —
+          // if it isn't, applyStrengthFromStorage() will pick up the stored
+          // value when the pipeline next starts.
+          if (await hasOffscreenDocument()) {
+            await chrome.runtime.sendMessage({ type: 'SET_STRENGTH', value: message.value }).catch(() => {});
+          }
+          sendResponse({ ok: true });
+          break;
+        }
+
+        case 'SET_BYPASS': {
+          // Bypass is not persisted — it is a transient A/B toggle only
+          // meaningful while the pipeline is running.
+          if (await hasOffscreenDocument()) {
+            await chrome.runtime.sendMessage({ type: 'SET_BYPASS', value: message.value }).catch(() => {});
+          }
+          sendResponse({ ok: true });
+          break;
+        }
+
+        case 'MIC_ENDED_UNEXPECTEDLY': {
+          // The mic track was cut externally (device unplugged, permission
+          // revoked, OS mute, etc.). Reset state and tear down the offscreen
+          // document so we start clean on the next user-initiated start.
+          await setRunningState(false);
+          await closeOffscreenDocument();
+          // No sendResponse — this is a fire-and-forget event from offscreen,
+          // not a request/response exchange.
+          break;
+        }
+
         default:
           break;
       }
@@ -142,4 +200,83 @@ chrome.runtime.onStartup?.addListener(async () => {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await setRunningState(false);
+  // If the user has opted into auto-start, kick off noise cancellation
+  // immediately so it's active as soon as the extension is (re)installed.
+  if (await getAutoStart()) {
+    await ensureOffscreenDocument();
+    const response = (await chrome.runtime.sendMessage({ type: 'OFFSCREEN_START' })) as BackgroundResponse;
+    if (response?.ok) {
+      await setRunningState(true);
+    } else {
+      await closeOffscreenDocument();
+    }
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Per-site auto-enable
+// ---------------------------------------------------------------------------
+// Tracks whether the current noise-reduction session was started by the
+// site-rule watcher (as opposed to manually by the user). This flag lives
+// in memory only — it resets every time the service worker restarts, which
+// is fine: after a restart the pipeline is already stopped (onStartup resets
+// state), so the watcher will re-evaluate on the next tab navigation.
+let autoStartedByRule = false;
+
+function hostnameFromUrl(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+async function handleTabUrl(url: string | undefined): Promise<void> {
+  if (!url) return;
+
+  const sites = await getAllowlistedSites();
+  if (sites.length === 0) return;
+
+  const hostname = hostnameFromUrl(url);
+  const isAllowlisted = hostname !== null && sites.some((s) => hostname === s || hostname.endsWith(`.${s}`));
+  const running = await getRunningState();
+
+  if (isAllowlisted && !running) {
+    // Navigate to an allowlisted site while stopped → auto-start.
+    await ensureOffscreenDocument();
+    const response = (await chrome.runtime.sendMessage({ type: 'OFFSCREEN_START' })) as BackgroundResponse;
+    if (response?.ok) {
+      await setRunningState(true);
+      autoStartedByRule = true;
+    } else {
+      await closeOffscreenDocument();
+    }
+  } else if (!isAllowlisted && running && autoStartedByRule) {
+    // Navigate away from an allowlisted site, and the session was started by
+    // the rule (not manually) → auto-stop.
+    if (await hasOffscreenDocument()) {
+      await chrome.runtime.sendMessage({ type: 'OFFSCREEN_STOP' }).catch(() => {});
+    }
+    await closeOffscreenDocument();
+    await setRunningState(false);
+    autoStartedByRule = false;
+  }
+}
+
+// Watch for URL changes within a tab (navigation, SPA history pushes).
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.active && tab.url) {
+    void handleTabUrl(tab.url);
+  }
+});
+
+// Watch for the user switching between tabs.
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    void handleTabUrl(tab.url);
+  } catch {
+    /* tab may have closed between the event and the get() call */
+  }
 });

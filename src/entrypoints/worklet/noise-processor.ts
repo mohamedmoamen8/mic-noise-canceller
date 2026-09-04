@@ -18,6 +18,10 @@ interface BypassMessage {
   value: boolean;
 }
 
+interface StopMessage {
+  type: 'STOP';
+}
+
 interface ErrorMessage {
   type: 'ERROR';
   message: string;
@@ -36,7 +40,7 @@ function buildEngine(initialNoiseFloor?: number): { engine: NoiseSuppressionEngi
   try {
     const module = createRNNWasmModuleSync() as unknown as RNNoiseWasmModule;
     return { engine: new RNNoiseEngine(module), name: 'rnnoise' };
-  } catch (err) {
+  } catch (_err) {
     // Intentionally swallow — this is the designed fallback path, not an
     // exceptional bug. The ERROR message below tells the popup why.
     // initialNoiseFloor (from a prior calibration) only matters here: RNNoise
@@ -80,9 +84,14 @@ class NoiseSuppressionProcessor extends AudioWorkletProcessor {
       this.port.postMessage(errMsg);
     }
 
-    this.port.onmessage = (event: MessageEvent<BypassMessage>) => {
+    this.port.onmessage = (event: MessageEvent<BypassMessage | StopMessage>) => {
       if (event.data?.type === 'BYPASS') {
-        this.bypass = Boolean(event.data.value);
+        this.bypass = Boolean((event.data as BypassMessage).value);
+      } else if (event.data?.type === 'STOP') {
+        // Pipeline is tearing down — free WASM memory immediately so it
+        // is not held until the AudioWorkletGlobalScope is GC'd.
+        this.engine.dispose();
+        this.port.close();
       }
     };
   }

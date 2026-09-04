@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Mic Noise Canceller — Options</title>
+  <style>
+    :root {
+      --bg: #14151a;
+      --panel: #1c1e26;
+      --accent: #5865f2;
+      --accent-off: #3a3d4a;
+      --text: #f2f3f7;
+      --muted: #8b8d9a;
+      --danger: #e5534b;
+      --good: #3ba55d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      max-width: 520px;
+      margin: 32px auto;
+      padding: 0 16px 48px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 24px;
+    }
+    h2 {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+    .panel {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--accent-off);
+    }
+    .row:last-child { border-bottom: none; }
+    .row-label { flex: 1; }
+    .row-label span {
+      display: block;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .row-label small {
+      display: block;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--accent-off);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      min-width: 180px;
+      cursor: pointer;
+    }
+    select:focus { outline: 2px solid var(--accent); }
+    input[type="range"] {
+      width: 140px;
+      accent-color: var(--accent);
+    }
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--accent-off);
+      border-radius: 999px;
+      transition: background 0.2s ease;
+    }
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+    input:checked + .slider { background: var(--accent); }
+    input:checked + .slider::before { transform: translateX(20px); }
+    .strength-value {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 34px;
+      text-align: right;
+    }
+    .strength-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #statusBanner {
+      display: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+    #statusBanner.ok {
+      background: rgba(59, 165, 93, 0.12);
+      border: 1px solid var(--good);
+      color: #7cdd9e;
+      display: block;
+    }
+    #statusBanner.error {
+      background: rgba(229, 83, 75, 0.12);
+      border: 1px solid var(--danger);
+      color: #ffb3ae;
+      display: block;
+    }
+    .mic-permission-hint {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      line-height: 1.5;
+    }
+    .site-list {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0;
+    }
+    .site-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--accent-off);
+      font-size: 13px;
+    }
+    .site-list li:last-child { border-bottom: none; }
+    .btn-remove {
+      background: none;
+      border: 1px solid var(--accent-off);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-remove:hover { border-color: var(--danger); color: var(--danger); }
+    .add-site-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .add-site-row input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--accent-off);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .add-site-row input[type="text"]:focus { outline: 2px solid var(--accent); }
+    .btn-add {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
+    .empty-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+    .site-list {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0;
+    }
+    .site-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--accent-off);
+      font-size: 13px;
+    }
+    .site-list li:last-child { border-bottom: none; }
+    .btn-remove {
+      background: none;
+      border: 1px solid var(--accent-off);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-remove:hover { border-color: var(--danger); color: var(--danger); }
+    .add-site-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .add-site-row input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--accent-off);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .add-site-row input[type="text"]:focus { outline: 2px solid var(--accent); }
+    .btn-add {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
+    .empty-hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 8px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mic Noise Canceller — Options</h1>
+
+  <div id="statusBanner"></div>
+
+  <div class="panel">
+    <h2>Microphone</h2>
+
+    <div class="row">
+      <div class="row-label">
+        <span>Default microphone</span>
+        <small>Device used when noise reduction starts. Requires mic permission.</small>
+      </div>
+      <select id="micSelect">
+        <option value="">System default</option>
+      </select>
+    </div>
+
+    <p class="mic-permission-hint" id="micPermissionHint" style="display:none;">
+      ⚠ Microphone permission has not been granted yet. Start noise reduction once from the
+      popup to grant permission, then return here to choose a device.
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>Noise Suppression</h2>
+
+    <div class="row">
+      <div class="row-label">
+        <span>Default suppression strength</span>
+        <small>Applied when noise reduction starts. Can be adjusted live in the popup.</small>
+      </div>
+      <div class="strength-controls">
+        <input type="range" id="strengthSlider" min="0" max="100" value="85" />
+        <span class="strength-value" id="strengthValue">85%</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Startup</h2>
+
+    <div class="row">
+      <div class="row-label">
+        <span>Auto-start on install / update</span>
+        <small>Automatically enable noise reduction when the extension is installed or updated.</small>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="autoStartSwitch" />
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Auto-enable Sites</h2>
+    <p class="empty-hint">Noise reduction starts automatically when you visit these sites and stops when you leave.</p>
+
+    <ul class="site-list" id="siteList"></ul>
+    <p class="empty-hint" id="siteListEmpty" style="display:none;">No sites added yet.</p>
+
+    <div class="add-site-row">
+      <input type="text" id="siteInput" placeholder="e.g. meet.google.com" autocomplete="off" spellcheck="false" />
+      <button class="btn-add" id="addSiteBtn">Add</button>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

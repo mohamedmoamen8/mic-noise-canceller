@@ -21,6 +21,17 @@ export interface GetStateRequest {
 export interface SetStrengthRequest {
   type: 'SET_STRENGTH';
   value: number; // 0..1
+  // Sent by popup → background (BackgroundRequest). Background persists the
+  // value to storage and then forwards the same shape to offscreen if the
+  // document is alive. Offscreen handles it directly as an internal forward.
+}
+
+export interface SetBypassRequest {
+  type: 'SET_BYPASS';
+  value: boolean;
+  // Sent by popup → background → offscreen → worklet port.
+  // Lets the user A/B between raw mic and processed audio while running.
+  // Not persisted — always resets to false when the pipeline stops.
 }
 
 export interface SetMonitorAudibleRequest {
@@ -77,6 +88,20 @@ export interface GetCalibrationRequest {
   type: 'GET_CALIBRATION';
 }
 
+export interface GetAllowlistedSitesRequest {
+  type: 'GET_SITES';
+}
+
+export interface AddAllowlistedSiteRequest {
+  type: 'ADD_SITE';
+  hostname: string;
+}
+
+export interface RemoveAllowlistedSiteRequest {
+  type: 'REMOVE_SITE';
+  hostname: string;
+}
+
 export interface OffscreenStartCalibrationRequest {
   type: 'OFFSCREEN_START_CALIBRATION';
   durationMs?: number;
@@ -90,16 +115,20 @@ export type BackgroundRequest =
   | StartNoiseCancelRequest
   | StopNoiseCancelRequest
   | GetStateRequest
+  | SetStrengthRequest
+  | SetBypassRequest
   | StartCalibrationRequest
   | CancelCalibrationRequest
   | ConfirmCalibrationRequest
   | ClearCalibrationRequest
-  | GetCalibrationRequest;
+  | GetCalibrationRequest
+  | GetAllowlistedSitesRequest
+  | AddAllowlistedSiteRequest
+  | RemoveAllowlistedSiteRequest;
 
 export type OffscreenRequest =
   | OffscreenStartRequest
   | OffscreenStopRequest
-  | SetStrengthRequest
   | SetMonitorAudibleRequest
   | GetVisualizerLevelsRequest
   | OffscreenStartCalibrationRequest
@@ -134,12 +163,17 @@ export interface StoredCalibrationResponse extends OkResponse {
   profile: NoiseProfile | null;
 }
 
+export interface AllowlistedSitesResponse extends OkResponse {
+  sites: string[];
+}
+
 export type BackgroundResponse =
   | OkResponse
   | ErrorResponse
   | StateResponse
   | CalibrationResultResponse
-  | StoredCalibrationResponse;
+  | StoredCalibrationResponse
+  | AllowlistedSitesResponse;
 
 export type OffscreenResponse = OkResponse | ErrorResponse | VisualizerLevelsResponse | CalibrationResultResponse;
 

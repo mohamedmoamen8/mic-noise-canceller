@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body>
+  <!--
+    Firefox MV2 persistent background page.
+    Runs background-firefox.js which contains both the extension message
+    orchestration (normally background.ts) and the audio pipeline
+    (normally offscreen.ts). Having everything in one document context
+    means getUserMedia / AudioContext are available directly — no
+    offscreen document relay needed.
+  -->
+  <script src="background-firefox.js"></script>
+</body>
+</html>

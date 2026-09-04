@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 // scripts/zip.mjs
+// Usage:
+//   node scripts/zip.mjs                                        → dist/ → mic-noise-canceller.zip
+//   node scripts/zip.mjs dist-firefox mic-noise-canceller-firefox.zip
 import { readdir, stat, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const dist = path.join(root, 'dist');
-const outZip = path.join(root, 'mic-noise-canceller.zip');
+
+const [, , distArg, outArg] = process.argv;
+const dist = path.resolve(root, distArg ?? 'dist');
+const outZip = path.resolve(root, outArg ?? 'mic-noise-canceller.zip');
 
 async function exists(p) {
   try {

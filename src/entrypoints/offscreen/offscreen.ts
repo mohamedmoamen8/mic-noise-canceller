@@ -3,7 +3,7 @@
 
 import { recordAmbientNoise, cancelCalibration } from '../../core/calibration/calibration-recorder';
 import type { NoiseProfile } from '../../core/calibration/noise-profile';
-import { getStoredNoiseProfile, getNoiseStrength, setNoiseStrength } from '../../core/storage';
+import { getStoredNoiseProfile, getNoiseStrength, setNoiseStrength, getPreferredMicDeviceId } from '../../core/storage';
 
 const SAMPLE_RATE = 48000;
 
@@ -26,8 +26,10 @@ async function startPipeline(): Promise<StartResult> {
   }
 
   try {
+    const preferredDeviceId = await getPreferredMicDeviceId();
     micStream = await navigator.mediaDevices.getUserMedia({
       audio: {
+        ...(preferredDeviceId ? { deviceId: { exact: preferredDeviceId } } : {}),
         echoCancellation: true,
         noiseSuppression: false, // handled by our own worklet
         autoGainControl: true,
@@ -122,6 +124,9 @@ async function stopPipeline(): Promise<void> {
   }
 
   try {
+    // Signal the worklet to free WASM memory before we disconnect it.
+    // Must happen before disconnect() so the MessagePort is still alive.
+    workletNode?.port.postMessage({ type: 'STOP' });
     sourceNode?.disconnect();
     workletNode?.disconnect();
     analyserNode?.disconnect();
@@ -237,6 +242,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
       case 'SET_MONITOR_AUDIBLE': {
         if (monitorAudioEl) monitorAudioEl.muted = !message.audible;
+        sendResponse({ ok: true });
+        break;
+      }
+      case 'SET_BYPASS': {
+        if (workletNode) {
+          workletNode.port.postMessage({ type: 'BYPASS', value: message.value });
+        }
         sendResponse({ ok: true });
         break;
       }

@@ -12,7 +12,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "types": ["chrome"],
+    "types": ["chrome", "node"],
     "noEmit": true
   },
   "include": ["src", "test"],

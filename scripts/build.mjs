@@ -30,6 +30,7 @@ const entries = [
   { in: 'src/entrypoints/background/background.ts', out: 'background' },
   { in: 'src/entrypoints/offscreen/offscreen.ts', out: 'offscreen' },
   { in: 'src/entrypoints/popup/popup.ts', out: 'popup' },
+  { in: 'src/entrypoints/options/options.ts', out: 'options' },
   // The worklet bundle inlines the RNNoise WASM binary (as base64, via the
   // @jitsi/rnnoise-wasm "sync" build) so it stays a single classic script
   // addModule() can load with no extra network fetch or manifest wiring.

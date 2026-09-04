@@ -1,6 +1,7 @@
 // src/popup/popup.ts
 
 import { getNoiseStrength } from '../../core/storage';
+import type { NoiseClassification, NoiseProfile } from '../../core/calibration/noise-profile';
 
 const toggleSwitch = document.getElementById('toggleSwitch') as HTMLInputElement;
 const toggleLabel = document.getElementById('toggleLabel') as HTMLElement;
@@ -9,6 +10,8 @@ const strengthSlider = document.getElementById('strengthSlider') as HTMLInputEle
 const strengthValue = document.getElementById('strengthValue') as HTMLElement;
 const monitorSwitch = document.getElementById('monitorSwitch') as HTMLInputElement;
 const errorBox = document.getElementById('errorBox') as HTMLElement;
+const bypassRow = document.getElementById('bypassRow') as HTMLElement;
+const bypassSwitch = document.getElementById('bypassSwitch') as HTMLInputElement;
 const engineBadge = document.getElementById('engineBadge') as HTMLElement;
 const canvas = document.getElementById('visualizer') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -54,6 +57,13 @@ function setUIRunning(running: boolean): void {
   toggleLabel.textContent = running ? 'Noise reduction is on' : 'Noise reduction is off';
   statusDot.classList.toggle('on', running);
 
+  // Show the bypass toggle only while the pipeline is active.
+  bypassRow.classList.toggle('visible', running);
+  if (!running) {
+    // Reset bypass state so the next session starts clean.
+    bypassSwitch.checked = false;
+  }
+
   if (running) {
     startVisualizerPolling();
   } else {
@@ -67,6 +77,7 @@ function setControlsBusy(busy: boolean): void {
   toggleSwitch.disabled = busy;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function sendToBackground<T = any>(message: Record<string, unknown>): Promise<T> {
   return chrome.runtime.sendMessage(message);
 }
@@ -115,6 +126,14 @@ monitorSwitch.addEventListener('change', async () => {
     await chrome.runtime.sendMessage({ type: 'SET_MONITOR_AUDIBLE', audible: monitorSwitch.checked });
   } catch {
     /* ignore */
+  }
+});
+
+bypassSwitch.addEventListener('change', async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: 'SET_BYPASS', value: bypassSwitch.checked });
+  } catch {
+    /* ignore — pipeline may have stopped between the UI event and this send */
   }
 });
 
@@ -180,6 +199,13 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === 'ENGINE_READY') {
     setEngineBadge(message.engine);
   }
+  if (message?.type === 'MIC_ENDED_UNEXPECTEDLY') {
+    // The mic track was cut while noise reduction was active (device
+    // unplugged, permission revoked, OS mute, etc.). Reset the UI to the
+    // stopped state and surface a clear explanation to the user.
+    setUIRunning(false);
+    showError('Microphone disconnected unexpectedly. Noise reduction has been stopped.');
+  }
 });
 
 // --- Microphone calibration --------------------------------------------
@@ -189,18 +215,6 @@ chrome.runtime.onMessage.addListener((message) => {
 //    clears the local data-URI reference to the clip immediately after —
 //    the recording itself is never written anywhere.
 //  - DISCARD: clears the local clip and nothing is stored at all.
-type NoiseClassification = 'quiet' | 'moderate' | 'noisy';
-
-interface NoiseProfile {
-  meanAbsLevel: number;
-  rmsLevel: number;
-  peakLevel: number;
-  classification: NoiseClassification;
-  suggestedNoiseFloor: number;
-  suggestedStrength: number;
-  durationMs: number;
-  sampleCount: number;
-}
 
 let pendingProfile: NoiseProfile | null = null;
 
