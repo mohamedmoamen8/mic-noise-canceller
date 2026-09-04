@@ -1,228 +1,200 @@
 # Mic Noise Canceller
 
-A **Manifest V3 Chrome extension** that applies real-time microphone noise suppression entirely on the client. Processing runs in an offscreen document using an **AudioWorklet** pipeline powered by **[RNNoise](https://github.com/xiph/rnnoise)** (WASM/ML via [`@jitsi/rnnoise-wasm`](https://github.com/jitsi/rnnoise-wasm)), with a dependency-free **JavaScript noise-gate fallback** when WASM cannot load.
+A Manifest V3 Chrome extension providing **real-time, client-side microphone noise cancellation** using RNNoise (a trained ML noise-suppression model compiled to WASM) with an automatic JavaScript fallback engine.
 
-All audio stays local — nothing is uploaded to a server.
+## Badges
+
+[![Build & Package](https://github.com/mohamedmoamen8/mic-noise-canceller/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamedmoamen8/mic-noise-canceller/actions)
+[![Chrome Extension](https://img.shields.io/badge/Chrome%20Extension-MV3-blue?logo=googlechrome)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+## Demo
+
+![Extension Demo](docs/demo.svg)
+
+*Toggle noise cancellation on/off, adjust suppression strength from 0–100%, enable audio monitoring to hear the difference, and run a one-time mic calibration to measure your room's ambient noise.*
+
+## Quick Start
+
+```bash
+npm install
+npm run package   # typecheck → test → build → zip
+```
+
+Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load unpacked** → select the `dist/` folder (or unzip `mic-noise-canceller.zip` and load that).
 
 ## Features
 
-- **RNNoise ML engine** with automatic fallback to an adaptive JS noise gate
-- **Microphone calibration** — record 3 seconds of ambient noise, listen back, and save a tuned profile
-- **Adjustable suppression strength** (0–100%)
-- **Live frequency visualizer** while noise reduction is active
-- **Monitor mode** — hear the cleaned signal through your speakers (optional)
-- **TypeScript** codebase with unit tests and CI
-
-## Architecture
-
-### Chrome (MV3)
-
-```
-popup.html / popup.ts          ← UI (toggle, calibration, sliders)
-        ↕ chrome.runtime messages
-background.ts (service worker) ← lifecycle, offscreen doc management, storage
-        ↕
-offscreen.ts                   ← getUserMedia, AudioContext, worklet wiring
-        ↕
-noise-processor.ts (worklet)   ← real-time DSP on the audio rendering thread
-        ↕
-RNNoiseEngine  |  GateEngine  ← pluggable NoiseSuppressionEngine interface
-```
-
-### Firefox (MV2)
-
-```
-popup.html / popup.ts          ← UI (shared with Chrome, no changes)
-        ↕ chrome.runtime messages
-background-firefox.ts          ← persistent background page:
-  (background page)              orchestration + getUserMedia + AudioContext
-        ↕                        + worklet wiring — all in one context
-noise-processor.ts (worklet)   ← real-time DSP (shared with Chrome)
-        ↕
-RNNoiseEngine  |  GateEngine  ← pluggable NoiseSuppressionEngine interface
-```
-
-Firefox uses a persistent MV2 background page, which has full DOM/Web Audio API access. There is no `offscreen` document intermediary — the audio pipeline runs directly in the background page.
-
-| Component | Chrome | Firefox |
-|-----------|--------|---------|
-| Background context | Service worker (`background.ts`) + offscreen doc (`offscreen.ts`) | Persistent background page (`background-firefox.ts`) |
-| Audio pipeline | `offscreen.ts` | `background-firefox.ts` (merged) |
-| Popup / Options | Shared | Shared |
-| Worklet | Shared | Shared |
-| Manifest version | MV3 | MV2 |
-
-| Component | Role |
-|-----------|------|
-| `background.ts` | Creates/closes the offscreen document, routes messages, persists state |
-| `offscreen.ts` | Captures mic input, runs the AudioWorklet chain, serves visualizer data |
-| `noise-processor.ts` | Instantiates RNNoise (sync WASM) or falls back to `GateEngine` |
-| `core/calibration/` | Records ambient noise, computes a `NoiseProfile`, suggests strength/floor |
-| `core/storage.ts` | Wraps `chrome.storage.local` for running state, calibration, strength |
-
-## Requirements
-
-- **Google Chrome 109+** (or Chromium-based browser with MV3 offscreen documents and `wasm-unsafe-eval` CSP support)
-- **Firefox 109+** (MV2 persistent background page build)
-- **Node.js 20+** (for building from source)
-
-## Quick start
-
-### Install from source
-
-```bash
-git clone https://github.com/mohamedmoamen8/mic-noise-canceller.git
-cd mic-noise-canceller
-npm install
-npm run build
-```
-
-### Load in Chrome
-
-1. Open `chrome://extensions`
-2. Enable **Developer mode**
-3. Click **Load unpacked**
-4. Select the `dist/` folder
-
-### Load in Firefox
-
-```bash
-npm run build:firefox   # produces dist-firefox/
-```
-
-1. Open `about:debugging#/runtime/this-firefox`
-2. Click **Load Temporary Add-on**
-3. Select `dist-firefox/manifest.json`
-
-For a permanent install (self-distributed), sign the extension via [addons.mozilla.org](https://addons.mozilla.org/developers/) and load the signed `.xpi`.
-
-### Development
-
-```bash
-npm run watch      # rebuild on file changes
-npm run typecheck  # TypeScript strict check (main + worklet configs)
-npm test           # unit tests (Vitest)
-npm run package    # typecheck + test + build + zip
-```
-
-The packaged extension zip is written to `mic-noise-canceller.zip`.
-
-## Usage
-
-1. Click the extension icon to open the popup.
-2. *(Optional)* Run **Microphone calibration** — stay quiet for 3 seconds, play back the clip to confirm it captured background noise only, then save.
-3. Toggle **Noise reduction** on. Chrome will prompt for microphone permission.
-4. Adjust **Suppression strength** to taste.
-5. Enable **Monitor cleaned audio** if you want to hear the processed signal locally.
-
-The popup badge shows which engine initialized: **RNNoise (ML)** or **JS fallback**.
-
-## Project structure
-
-```
-├── public/                  Static assets copied to dist/ (manifest, HTML)
-│   ├── manifest.json        Chrome MV3 manifest
-│   └── manifest_firefox.json Firefox MV2 manifest
-├── scripts/
-│   ├── build.mjs            esbuild bundler — Chrome (IIFE per entry point)
-│   ├── build-firefox.mjs    esbuild bundler — Firefox
-│   └── zip.mjs              Packages dist/ into a release zip
-├── src/
-│   ├── core/
-│   │   ├── calibration/     Noise profile analysis
-│   │   ├── dsp/             RNNoise engine, gate fallback, ring buffer
-│   │   ├── messages/        Typed runtime message contracts
-│   │   └── storage.ts       chrome.storage.local helpers
-│   └── entrypoints/
-│       ├── background/      Chrome: service worker (orchestration only)
-│       ├── background-firefox/ Firefox: persistent background page (orchestration + audio)
-│       ├── offscreen/       Chrome: audio capture + worklet host
-│       ├── popup/           Extension popup UI (shared)
-│       ├── options/         Options page: device, strength, auto-start, site allowlist (shared)
-│       └── worklet/         AudioWorkletProcessor — RNNoise / gate (shared)
-├── test/
-│   ├── dsp/                 Unit tests for DSP engines and ring buffer
-│   ├── calibration/         Unit tests for noise profile analysis
-│   ├── integration/         Vitest integration tests for background message handlers
-│   └── e2e/                 Playwright smoke tests (requires built dist/)
-└── dist/                    Chrome build output
-└── dist-firefox/            Firefox build output
-```
+- **RNNoise ML engine** — Real trained noise suppression from the [xiph/rnnoise](https://github.com/xiph/rnnoise) project, compiled to WebAssembly via [@jitsi/rnnoise-wasm](https://github.com/jitsi/rnnoise-wasm). Effective against fans, traffic, keyboard noise, and other steady/transient background sounds.
+- **JS fallback** — If WASM fails to initialize (CSP issues, unsupported browser, corrupted bundle), the extension automatically falls back to an adaptive noise gate with no dependencies, so audio never stops.
+- **One-time mic calibration** — Records 3 seconds of ambient room noise, lets you play it back to confirm it's just background noise, then persists only a handful of computed numbers (no raw audio ever touches disk or storage). Seeds the fallback engine and suggests an optimal suppression strength.
+- **Real-time visualizer** — Live frequency bar display driven by the `AnalyserNode` in the audio pipeline.
+- **Audio monitor** — Optional local `<audio>` playback of the cleaned signal so you can hear the difference instantly.
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Bundle Chrome build into `dist/` |
-| `npm run watch` | Chrome watch mode (no minification) |
-| `npm run build:firefox` | Bundle Firefox build into `dist-firefox/` |
-| `npm run watch:firefox` | Firefox watch mode |
-| `npm run typecheck` | Strict TypeScript check |
-| `npm run lint` | ESLint across src/, test/, scripts/ |
-| `npm run lint:fix` | ESLint with auto-fix |
-| `npm run format` | Prettier format |
-| `npm test` | Run Vitest unit + integration tests |
-| `npm run test:e2e` | Playwright E2E smoke tests (requires `npm run build` first) |
-| `npm run package` | Full Chrome release pipeline + zip |
-| `npm run package:firefox` | Full Firefox release pipeline + zip |
-| `npm run clean` | Remove `dist/` |
+| Command              | What it does                                              |
+|----------------------|-----------------------------------------------------------|
+| `npm run build`      | Bundles all entry points into `dist/` with esbuild        |
+| `npm run watch`      | Same, but rebuilds on file change                         |
+| `npm run typecheck`  | Runs `tsc --noEmit` against both tsconfigs                |
+| `npm test`           | Runs the vitest suite (unit + real-WASM integration tests)|
+| `npm run package`    | typecheck → test → build → zip, in that order             |
+| `npm run clean`      | Removes the `dist/` directory                             |
 
-## Privacy
+## Folder Structure
 
-- Microphone access is used only when you turn on noise reduction or run calibration.
-- Calibration audio is held in memory as a temporary `data:` URI for playback confirmation; only numeric profile values are persisted.
-- No network requests are made. No analytics. No external services.
+```
+src/
+  entrypoints/           # one folder per Chrome extension context
+    background/
+      background.ts      # service worker — offscreen lifecycle + message relay
+    offscreen/
+      offscreen.ts       # only context with getUserMedia / AudioContext
+    popup/
+      popup.ts           # UI logic, calibration flow
+    worklet/
+      noise-processor.ts # AudioWorkletProcessor (runs on the audio thread)
 
-## Known limitations
+  core/                  # pure logic, no chrome.* calls, trivially unit-testable
+    dsp/
+      engine.ts          # NoiseSuppressionEngine interface
+      rnnoise-engine.ts  # WASM wrapper with 128↔480 sample ring-buffer bridging
+      gate-engine.ts     # JS fallback adaptive noise gate
+      ring-buffer.ts     # fixed-capacity circular Float32 buffer
+    calibration/
+      noise-profile.ts   # PCM analysis → NoiseProfile (pure, no DOM)
+      calibration-recorder.ts  # MediaRecorder + decode + base64
+    storage.ts            # resilient chrome.storage.local wrapper
 
-> **Important:** This extension processes your microphone inside Chrome but **does not replace the system microphone** for other applications (Zoom, Discord, Google Meet, etc.). Other apps still receive the raw mic signal unless you route audio through a virtual cable or similar tooling. Monitor mode plays cleaned audio to your speakers only.
+  types/
+    rnnoise-wasm.d.ts    # ambient module declaration
 
-Other current limitations:
+public/                  # static assets copied as-is into dist/
+  manifest.json          # MV3 manifest with "storage" + "offscreen" permissions
+  popup.html             # popup UI (inline styles, no external CSS deps)
+  offscreen.html         # offscreen document shell
+  icons/                  # 16 / 48 / 128 px PNGs
 
-- **Chrome and Firefox only** — relies on `wasm-unsafe-eval` CSP support and AudioWorklet
-- RNNoise adds ~10 ms of algorithmic latency (imperceptible for voice chat)
-- Calibration benefits the JS gate fallback most; RNNoise is a fixed ML model
+scripts/
+  build.mjs              # esbuild bundler for all entry points
+  zip.mjs                # cross-platform zip packaging (no Unix tools required)
 
-## Roadmap (suggested next steps)
+test/
+  dsp/                   # unit + real-WASM integration tests
+  calibration/           # noise profile analysis tests
+```
 
-See [Development gaps](#development-gaps) below for a senior-level breakdown of what is still needed to ship a production-ready product.
+The split between `entrypoints/` and `core/` is deliberate: everything in `core/` is plain TypeScript with no `chrome.*` calls and no assumption about which extension context it runs in, so it's trivially unit-testable. `entrypoints/` is the thin Chrome-API-heavy glue that wires `core/` logic into the extension lifecycle.
+
+## Architecture
+
+```
+popup.ts ──chrome.runtime.sendMessage──▶ background.ts (service worker)
+                                              │
+                              chrome.offscreen.createDocument()
+                                              │
+                                              ▼
+                                    offscreen.ts (DOM context)
+                                              │
+                       getUserMedia ──▶ AudioContext ──▶ AudioWorkletNode
+                                              │
+                                    noise-processor.ts (worklet thread)
+                                              │
+                      RNNoiseEngine (WASM) ◀── falls back to ──▶ GateEngine (pure JS)
+```
+
+### Data flow
+
+1. **Popup** sends `START_NOISE_CANCEL` to **background**.
+2. **Background** creates an offscreen document via `chrome.offscreen.createDocument()`.
+3. **Offscreen** opens `getUserMedia`, creates an `AudioContext`, loads the AudioWorklet, and builds the pipeline:
+   ```
+   MediaStreamSource → AudioWorkletNode → AnalyserNode → MediaStreamDestination → <audio>
+   ```
+4. The **AudioWorklet** runs on the real-time audio thread. It tries RNNoise WASM first; if that throws, it instantiates the JS `GateEngine`. Either way, 128-sample PCM frames flow in and cleaned PCM frames flow out.
+5. The cleaned stream feeds the `<audio>` monitor element (muted by default; toggle "Monitor cleaned audio" to unmute) and the `AnalyserNode` for the visualizer.
+
+### Why RNNoise via @jitsi/rnnoise-wasm
+
+RNNoise is a trained ML model requiring real neural-network weights baked in at compile time. `@jitsi/rnnoise-wasm` is Jitsi's own prebuilt, Apache-2.0-licensed build of [xiph/rnnoise](https://github.com/xiph/rnnoise) — the same one Jitsi Meet uses in production.
+
+RNNoise operates on 480-sample (10ms @ 48kHz) frames, but Web Audio delivers fixed 128-sample callbacks. `RNNoiseEngine` bridges the two with `RingBuffer` instances, adding under 10ms of constant algorithmic latency — imperceptible for voice chat.
+
+## Microphone Calibration
+
+Before your first session, calibrate to measure your room's actual ambient noise:
+
+1. Click **Record 3s of background noise** and stay quiet.
+2. The clip plays back in the popup so you can confirm it's just room noise (not your voice), along with a plain-language read on how noisy your room is.
+3. **Use this & save** persists only the computed profile (mean level, peak, suggested noise floor + suppression strength) to `chrome.storage.local`. **Discard & retry** keeps nothing.
+4. The raw audio clip is deleted immediately after playback — it only exists as an in-memory `data:` URI and is never written to disk or sync storage.
+
+The saved profile seeds `GateEngine`'s initial noise-floor estimate so the fallback starts accurate. RNNoise ignores this — it's a trained model, not a threshold gate.
+
+## Testing
+
+26 tests across 4 files, all real logic (nothing mocked):
+
+- `test/dsp/ring-buffer.test.ts` — FIFO, wraparound, overflow/underflow
+- `test/dsp/gate-engine.test.ts` — JS fallback DSP correctness, calibration seeding
+- `test/dsp/rnnoise-engine.test.ts` — Loads the **actual** `@jitsi/rnnoise-wasm` binary under Node's built-in `WebAssembly` global and verifies real noise reduction.
+- `test/calibration/noise-profile.test.ts` — Classification thresholds, edge cases (silence, empty buffers, single-sample peaks)
+
+## Permissions
+
+| Permission | Why it's needed |
+|---|---|
+| `offscreen` | Host a DOM/Web Audio context from the service worker (where no DOM exists) |
+| `storage` | Persist running state, suppression strength, and calibration profile (numbers only, never raw audio) |
+
+`tabCapture` is intentionally **not** requested: this captures the microphone via `getUserMedia`, not tab audio.
+
+## Known Limitations
+
+- The cleaned audio only loops back to an optional local `<audio>` monitor element so you can hear the effect. Routing it system-wide as a virtual microphone that other apps can select requires a native companion application — Chrome extensions can't register a system audio input device on their own.
+- RNNoise is trained primarily on speech + steady/transient noise. It's strong on typical background noise (fans, traffic, keyboards) but isn't a universal denoiser for music or highly unusual signals.
+- If you calibrate and never start a real session afterward, the offscreen document stays open until you start or Chrome reclaims it — only the dedicated calibration mic capture is guaranteed to close immediately.
+
+## Troubleshooting
+
+### "chrome.storage.local is not available"
+
+This is a non-blocking warning — the extension still works; you just won't have persisted settings across sessions. Try:
+
+1. Ensure you loaded the extension from the `dist/` folder, not the project root or `public/`.
+2. Go to `chrome://extensions`, find the extension, click **Reload**.
+3. If it persists, remove and re-add the unpacked extension.
+
+### AudioContext is suspended
+
+If the visualizer is idle and no engine badge appears, the `AudioContext` may be in a suspended state. The extension attempts `audioContext.resume()` automatically. If that fails, click the toggle off and back on — the user-gesture from the click should resolve it.
+
+### No audible difference with monitor on
+
+- Ensure **Monitor cleaned audio** is checked.
+- Set strength slider to 100% for maximum noise suppression.
+- The effect may be subtle on quiet background noise — try in a noisier environment or record a calibration for optimal threshold seeding.
+
+### Zip/packaging fails on Windows
+
+The `npm run package` script uses a cross-platform Node.js zip writer (no external `zip` or `rm` utilities required). If you still see errors, ensure you're running the latest code:
+```bash
+npm install
+npm run package
+```
+
+## Contributing
+
+Contributions welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Run `npm run typecheck && npm test` before submitting
+4. Add unit tests for any new DSP logic in `src/core/`
+
+All code in `src/core/` should remain pure TypeScript with no `chrome.*` calls, to maintain unit-testability.
 
 ## License
 
-[MIT](LICENSE) — RNNoise itself is BSD-licensed; `@jitsi/rnnoise-wasm` bundles the compiled WASM build.
-
----
-
-## Development gaps
-
-This section summarizes what a production-ready v1 still needs beyond the current prototype.
-
-### P0 — Must-have for a real product
-
-| Gap | Why it matters |
-|-----|----------------|
-| **Virtual mic / audio routing** | Without injecting processed audio back into the OS or target apps, the extension cannot actually clean mic input for Zoom/Meet/Teams. Options: virtual audio driver, `chrome.tabCapture` loopback, or documented pairing with VB-Cable/BlackHole. |
-| **Strength slider persistence before start** | `SET_STRENGTH` is handled only in the offscreen document. Adjusting the slider before enabling noise reduction may not persist to storage. Route through background or write to storage from popup. |
-| **`MIC_ENDED_UNEXPECTEDLY` handling** | Offscreen posts this when the mic track ends; popup/background should reset UI state. |
-
-### P1 — Store & quality
-
-| Gap | Why it matters |
-|-----|----------------|
-| **Chrome Web Store listing** | Privacy policy, screenshots, promotional tile, detailed permission justification |
-| **Version sync** | Align `package.json` and `manifest.json` version fields |
-| **E2E tests** | Puppeteer/playwright tests for popup ↔ background ↔ offscreen message flows |
-| **ESLint + Prettier** | Consistent style and catch common extension pitfalls |
-| **RNNoise `dispose()` on teardown** | WASM memory is not freed when the worklet/pipeline stops |
-
-### P2 — Nice-to-have
-
-| Gap | Why it matters |
-|-----|----------------|
-| **Per-site auto-enable** | Optional content script or `chrome.declarativeContent` rules |
-| **Firefox port** | Would need alternate architecture (no offscreen API) |
-| **Options page** | Device picker, default strength, auto-start preferences |
-| **Bypass A/B toggle in UI** | Worklet supports `BYPASS` port message but UI does not expose it |
-| **Duplicate types in popup** | `NoiseProfile` is re-declared in `popup.ts` instead of importing from `core/calibration` |
-#   m i c - n o i s e - c a n c e l l e r  
- 
+MIT — see [LICENSE](LICENSE). RNNoise model weights are distributed under the BSD-like license of the xiph/rnnoise project; see the upstream [LICENSE](https://github.com/xiph/rnnoise/blob/master/COPYING) for details.
