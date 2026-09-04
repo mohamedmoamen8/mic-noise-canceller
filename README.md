@@ -1,6 +1,13 @@
+[![Build](https://github.com/mohamedmoamen8/mic-noise-canceller/actions/workflows/build.yml/badge.svg)](https://github.com/mohamedmoamen8/mic-noise-canceller/actions/workflows/build.yml)
+[![Tests](https://github.com/mohamedmoamen8/mic-noise-canceller/actions/workflows/test.yml/badge.svg)](https://github.com/mohamedmoamen8/mic-noise-canceller/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](./LICENSE)
+
 # Mic Noise Canceller
 
 A lightweight Manifest V3 Chrome extension that applies real‑time microphone noise suppression entirely on the client. Audio processing runs inside an offscreen document using an AudioWorklet pipeline and (when available) a compiled RNNoise WASM engine — nothing is uploaded to a server and all audio stays local.
+
+
+![Demo placeholder](docs/demo.svg)
 
 ## Features
 
@@ -77,6 +84,15 @@ The packaged extension zip is written to `mic-noise-canceller.zip`.
 
 The popup badge shows which engine initialized: **RNNoise (ML)** or **JS fallback**.
 
+## Troubleshooting
+
+- Permission prompt not shown: ensure the extension is loaded in `chrome://extensions` and that the extension has the `activeTab` and `microphone`-related permissions in the unpacked `manifest.json` during development. Reload the extension after changing the manifest.
+- RNNoise (WASM) failed to initialize: check the extension CSP and `wasm-unsafe-eval` setting; open the background page console for WASM linker errors.
+- No audio output in Monitor mode: confirm your audio output device and Chrome’s site audio settings; try disabling exclusive audio device usage in other apps.
+- High CPU usage: RNNoise is optimized, but if you see consistently high CPU, try lowering the suppression strength or use the JS gate fallback.
+
+If you still run into issues, open an issue with a short description, steps to reproduce, and Chrome console logs if available.
+
 ## Project structure
 
 ```
@@ -124,7 +140,4 @@ The popup badge shows which engine initialized: **RNNoise (ML)** or **JS fallbac
 
 ---
 
-If you'd like, I can also:
-- Add badges (build/test) to the top of the README
-- Add a small GIF showing the popup in action
-- Create a short CONTRIBUTING.md with development notes
+If you'd like anything changed (different badge links, a real demo GIF, or a different license), tell me and I’ll update the branch.
