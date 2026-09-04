@@ -10,7 +10,7 @@ A Manifest V3 Chrome extension providing **real-time, client-side microphone noi
 
 ## Demo
 
-![Extension Demo](docs/demo.svg)
+![Extension Demo](docs/demo.png)
 
 *Toggle noise cancellation on/off, adjust suppression strength from 0–100%, enable audio monitoring to hear the difference, and run a one-time mic calibration to measure your room's ambient noise.*
 
