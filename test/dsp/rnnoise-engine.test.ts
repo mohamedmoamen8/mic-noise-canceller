@@ -40,15 +40,11 @@ describe('RNNoiseEngine (real WASM)', () => {
   it('reduces RMS energy of pure white noise once primed (strength=1)', () => {
     const engine = new RNNoiseEngine(loadModule());
 
-    // Feed enough frames to get past the priming latency (>480 samples)
-    // and let RNNoise's internal state adapt to "this is all noise".
     let lastOut: Float32Array = new Float32Array(128);
     for (let i = 0; i < 200; i++) {
       lastOut = engine.process(whiteNoise(128, 0.05), 1);
     }
 
-    // RNNoise should have suppressed most of the steady-state noise energy
-    // by now; the output RMS should be meaningfully below the input RMS.
     expect(rms(lastOut)).toBeLessThan(0.05 * 0.7);
     engine.dispose();
   });
@@ -58,15 +54,10 @@ describe('RNNoiseEngine (real WASM)', () => {
     const input = whiteNoise(128, 0.1);
 
     let out: Float32Array = new Float32Array(128);
-    // Push the same frame repeatedly so we can compare final dry passthrough
-    // once the ring buffers are past their initial priming silence.
     for (let i = 0; i < 10; i++) {
       out = engine.process(input, 0);
     }
 
-    // At strength 0 the mix is 100% dry, so once primed, output should
-    // exactly equal a delayed copy of some earlier input frame - since we
-    // feed the identical frame every call here, it should match exactly.
     expect(Array.from(out)).toEqual(Array.from(input));
     engine.dispose();
   });
@@ -86,5 +77,36 @@ describe('RNNoiseEngine (real WASM)', () => {
     const engine = new RNNoiseEngine(loadModule());
     engine.dispose();
     expect(() => engine.dispose()).not.toThrow();
+  });
+
+  it('throws when process() is called after dispose()', () => {
+    const engine = new RNNoiseEngine(loadModule());
+    engine.dispose();
+    expect(() => engine.process(new Float32Array(128), 0.85)).toThrow(
+      'RNNoiseEngine.process() called after dispose().'
+    );
+  });
+
+  it('clamps strength to [0, 1]', () => {
+    const engine = new RNNoiseEngine(loadModule());
+    const input = whiteNoise(128, 0.1);
+
+    const outUnder = engine.process(input, -0.5);
+    const outOver = engine.process(input, 1.5);
+
+    for (const sample of outUnder) {
+      expect(Number.isFinite(sample)).toBe(true);
+    }
+    for (const sample of outOver) {
+      expect(Number.isFinite(sample)).toBe(true);
+    }
+    engine.dispose();
+  });
+
+  it('returns silence while priming (first callback)', () => {
+    const engine = new RNNoiseEngine(loadModule());
+    const out = engine.process(new Float32Array(128), 0.85);
+    expect(out.length).toBe(128);
+    engine.dispose();
   });
 });

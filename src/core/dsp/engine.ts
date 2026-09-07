@@ -4,6 +4,10 @@
 // to know which one it's driving. This is the seam mentioned in the README
 // that made the RNNoise upgrade a swap rather than a rewrite.
 
+/**
+ * Contract for any noise-suppression engine that can process 128-sample
+ * mono PCM frames in [-1, 1].
+ */
 export interface NoiseSuppressionEngine {
   /**
    * Consume one 128-sample render-quantum frame of mono PCM in [-1, 1] and

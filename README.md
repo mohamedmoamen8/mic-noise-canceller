@@ -134,12 +134,19 @@ The saved profile seeds `GateEngine`'s initial noise-floor estimate so the fallb
 
 ## Testing
 
-26 tests across 4 files, all real logic (nothing mocked):
+120 tests across 12 files, covering pure DSP logic, real WASM integration, storage mocks, message routing, calibration, and hostname utilities:
 
-- `test/dsp/ring-buffer.test.ts` — FIFO, wraparound, overflow/underflow
-- `test/dsp/gate-engine.test.ts` — JS fallback DSP correctness, calibration seeding
-- `test/dsp/rnnoise-engine.test.ts` — Loads the **actual** `@jitsi/rnnoise-wasm` binary under Node's built-in `WebAssembly` global and verifies real noise reduction.
+- `test/dsp/ring-buffer.test.ts` — FIFO, wraparound, overflow/underflow, edge cases
+- `test/dsp/gate-engine.test.ts` — JS fallback DSP correctness, calibration seeding, strength=0 passthrough
+- `test/dsp/rnnoise-engine.test.ts` — Loads the **actual** `@jitsi/rnnoise-wasm` binary under Node's built-in `WebAssembly` global and verifies real noise reduction, dispose idempotency, post-dispose safety, and strength clamping
 - `test/calibration/noise-profile.test.ts` — Classification thresholds, edge cases (silence, empty buffers, single-sample peaks)
+- `test/calibration/calibration-recorder.test.ts` — `isCalibrationRunning` and `cancelCalibration` behavior with mocked `MediaRecorder`
+- `test/core/storage.test.ts` — 26 tests covering all storage getters/setters with mocked `chrome.storage.local`
+- `test/core/messages/messages.test.ts` — Type guard validation for runtime messages
+- `test/core/pipeline.test.ts` — Shared pipeline helpers (`describeMicError`, `startPipeline`, `stopPipeline`, `runCalibration`)
+- `test/entrypoints/background/hostname.test.ts` — URL-to-hostname extraction
+- `test/entrypoints/options/hostname.test.ts` — Hostname normalization for site allowlist
+- `test/entrypoints/popup/describe-classification.test.ts` — UI classification string mapping
 
 ## Permissions
 

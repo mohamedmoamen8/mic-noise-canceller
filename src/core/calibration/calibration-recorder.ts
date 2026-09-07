@@ -12,14 +12,13 @@
 // and the popup's own cleanup on CONFIRM/DISCARD).
 
 import { computeNoiseProfile, type NoiseProfile } from './noise-profile';
+import { DEFAULT_DURATION_MS } from '../constants';
 
 export interface CalibrationResult {
   profile: NoiseProfile;
   audioBase64: string;
   mimeType: string;
 }
-
-const DEFAULT_DURATION_MS = 3000;
 
 let activeRecorder: MediaRecorder | null = null;
 

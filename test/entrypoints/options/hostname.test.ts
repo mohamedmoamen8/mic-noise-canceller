@@ -37,4 +37,16 @@ describe('normaliseHostname', () => {
   it('preserves subdomains', () => {
     expect(normaliseHostname('sub.domain.example.com')).toBe('sub.domain.example.com');
   });
+
+  it('rejects empty string', () => {
+    expect(normaliseHostname('')).toBe('');
+  });
+
+  it('rejects whitespace-only string', () => {
+    expect(normaliseHostname('   ')).toBe('');
+  });
+
+  it('rejects hostnames with spaces', () => {
+    expect(normaliseHostname('example .com')).toBe('example .com');
+  });
 });

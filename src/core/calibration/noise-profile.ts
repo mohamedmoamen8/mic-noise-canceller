@@ -4,6 +4,8 @@
 // "is this quiet or noisy", so it needs to be trivially unit-testable
 // with synthetic Float32Array data, independent of MediaRecorder/AudioContext.
 
+import { QUIET_RMS_THRESHOLD, MODERATE_RMS_THRESHOLD, MIN_NOISE_FLOOR } from '../constants';
+
 export type NoiseClassification = 'quiet' | 'moderate' | 'noisy';
 
 export interface NoiseProfile {
@@ -21,10 +23,6 @@ export interface NoiseProfile {
   durationMs: number;
   sampleCount: number;
 }
-
-const QUIET_RMS_THRESHOLD = 0.004;
-const MODERATE_RMS_THRESHOLD = 0.015;
-const MIN_NOISE_FLOOR = 0.0005; // never seed a floor of literally zero
 
 function classify(rmsLevel: number): NoiseClassification {
   if (rmsLevel < QUIET_RMS_THRESHOLD) return 'quiet';

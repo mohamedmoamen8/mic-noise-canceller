@@ -28,7 +28,7 @@ describe('RingBuffer', () => {
     rb.push(new Float32Array([10, 20, 30]));
 
     expect(Array.from(rb.peek(2))).toEqual([10, 20]);
-    expect(rb.available).toBe(3); // unchanged by peek
+    expect(rb.available).toBe(3);
 
     expect(Array.from(rb.shift(2))).toEqual([10, 20]);
     expect(rb.available).toBe(1);
@@ -53,5 +53,39 @@ describe('RingBuffer', () => {
 
     expect(rb.available).toBe(6);
     expect(rb.freeSpace).toBe(4);
+  });
+
+  it('supports exact-capacity push', () => {
+    const rb = new RingBuffer(4);
+    rb.push(new Float32Array([1, 2, 3, 4]));
+    expect(rb.available).toBe(4);
+    expect(rb.freeSpace).toBe(0);
+  });
+
+  it('rejects push when freeSpace is zero', () => {
+    const rb = new RingBuffer(2);
+    rb.push(new Float32Array([1, 2]));
+    expect(() => rb.push(new Float32Array([3]))).toThrow(RangeError);
+  });
+
+  it('handles large shift after multiple wraps', () => {
+    const rb = new RingBuffer(4);
+    rb.push(new Float32Array([1, 2, 3]));
+    rb.shift(1);
+    rb.push(new Float32Array([4]));
+    rb.shift(1);
+    rb.push(new Float32Array([5, 6]));
+
+    expect(rb.available).toBe(4);
+    expect(Array.from(rb.shift(4))).toEqual([3, 4, 5, 6]);
+  });
+
+  it('handles peek across wrap boundary', () => {
+    const rb = new RingBuffer(4);
+    rb.push(new Float32Array([1, 2, 3]));
+    rb.shift(2);
+    rb.push(new Float32Array([4, 5]));
+
+    expect(Array.from(rb.peek(3))).toEqual([3, 4, 5]);
   });
 });

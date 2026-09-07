@@ -14,12 +14,7 @@
 
 import type { NoiseSuppressionEngine } from './engine';
 import { RingBuffer } from './ring-buffer';
-
-const RNNOISE_FRAME_SIZE = 480;
-const PCM_SCALE = 32768;
-// Buffer capacity: generous headroom above one RNNoise frame so we never
-// block on push() even if a few worklet callbacks arrive before we drain.
-const BUFFER_CAPACITY = RNNOISE_FRAME_SIZE * 4;
+import { RNNOISE_FRAME_SIZE, PCM_SCALE, BUFFER_CAPACITY } from '../constants';
 
 /** The subset of the Emscripten Module surface this engine depends on. */
 export interface RNNoiseWasmModule {

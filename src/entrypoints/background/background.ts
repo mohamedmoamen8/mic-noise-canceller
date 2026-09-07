@@ -3,15 +3,21 @@ import type { BackgroundResponse, RuntimeMessage } from '../../core/messages/mes
 import {
   getRunningState,
   setRunningState,
-  getStoredNoiseProfile,
-  setStoredNoiseProfile,
-  clearStoredNoiseProfile,
   setNoiseStrength,
   getAutoStart,
   getAllowlistedSites,
-  addAllowlistedSite,
-  removeAllowlistedSite,
 } from '../../core/storage';
+import {
+  handleGetState,
+  handleSetStrength,
+  handleConfirmCalibration,
+  handleClearCalibration,
+  handleGetCalibration,
+  handleGetSites,
+  handleAddSite,
+  handleRemoveSite,
+} from '../../core/message-handlers';
+import { hostnameFromUrl } from '../../core/url';
 
 const OFFSCREEN_PATH = 'offscreen.html';
 
@@ -86,15 +92,11 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         }
 
         case 'GET_STATE': {
-          const running = await getRunningState();
-          sendResponse({ ok: true, running });
+          sendResponse(await handleGetState());
           break;
         }
 
         case 'START_CALIBRATION': {
-          // Calibration needs live mic access but not the full noise-cancel
-          // pipeline, so it shares the offscreen document lifecycle without
-          // touching the START_NOISE_CANCEL running-state flag at all.
           await ensureOffscreenDocument();
           const response = await chrome.runtime.sendMessage({
             type: 'OFFSCREEN_START_CALIBRATION',
@@ -113,52 +115,41 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
         }
 
         case 'CONFIRM_CALIBRATION': {
-          await setStoredNoiseProfile(message.profile);
-          sendResponse({ ok: true });
+          sendResponse(await handleConfirmCalibration(message.profile));
           break;
         }
 
         case 'CLEAR_CALIBRATION': {
-          await clearStoredNoiseProfile();
-          sendResponse({ ok: true });
+          sendResponse(await handleClearCalibration());
           break;
         }
 
         case 'GET_CALIBRATION': {
-          const profile = await getStoredNoiseProfile();
-          sendResponse({ ok: true, profile });
+          sendResponse(await handleGetCalibration());
           break;
         }
 
         case 'GET_SITES': {
-          const sites = await getAllowlistedSites();
-          sendResponse({ ok: true, sites });
+          sendResponse(await handleGetSites());
           break;
         }
 
         case 'ADD_SITE': {
-          await addAllowlistedSite(message.hostname);
-          sendResponse({ ok: true });
+          sendResponse(await handleAddSite(message.hostname));
           break;
         }
 
         case 'REMOVE_SITE': {
-          await removeAllowlistedSite(message.hostname);
-          sendResponse({ ok: true });
+          sendResponse(await handleRemoveSite(message.hostname));
           break;
         }
 
         case 'SET_STRENGTH': {
-          // Always persist to storage so the value survives before the
-          // pipeline starts and across service-worker restarts.
           await setNoiseStrength(message.value);
-          // Forward to offscreen only if the document is already alive —
-          // if it isn't, applyStrengthFromStorage() will pick up the stored
-          // value when the pipeline next starts.
           if (await hasOffscreenDocument()) {
             await chrome.runtime.sendMessage({ type: 'SET_STRENGTH', value: message.value }).catch(() => {});
           }
-          sendResponse({ ok: true });
+          sendResponse(await handleSetStrength(message.value));
           break;
         }
 
@@ -187,6 +178,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
           break;
       }
     } catch (err) {
+      console.warn('[background] Message handler error:', err);
       sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
     }
   })();
@@ -223,14 +215,6 @@ chrome.runtime.onInstalled.addListener(async () => {
 // is fine: after a restart the pipeline is already stopped (onStartup resets
 // state), so the watcher will re-evaluate on the next tab navigation.
 let autoStartedByRule = false;
-
-function hostnameFromUrl(url: string): string | null {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return null;
-  }
-}
 
 async function handleTabUrl(url: string | undefined): Promise<void> {
   if (!url) return;
@@ -276,7 +260,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
     void handleTabUrl(tab.url);
-  } catch {
-    /* tab may have closed between the event and the get() call */
+  } catch (err) {
+    console.warn('[background] Tab activation error:', err);
   }
 });

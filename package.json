@@ -37,6 +37,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
-    "@jitsi/rnnoise-wasm": "^0.2.1"
+    "@jitsi/rnnoise-wasm": "^0.2.1",
+    "fflate": "^0.8.3"
   }
 }
